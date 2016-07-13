@@ -12,7 +12,7 @@ from lxml import etree
 
 class Spider():
     def __init__(self, url):
-        # 开始爬取页面
+        # 初始化
         self.url = url
         self.header={}
         #cookie
@@ -113,9 +113,7 @@ class Spider():
         else:
             return ''
 
-        
-
-    
+  
     def print_data_out(self):
         print "*" * 60
         print '用户名:%s\n' % self.user_name
@@ -140,14 +138,14 @@ class Spider():
         print "*" * 60
         
 def main():
-    m = Spider('https://www.zhihu.com/people/daisy-xu-42/followees')
+    m = Spider('https://www.zhihu.com/people/reynolds/followees')
     next_people = m.get_data()
     url_queue = Queue.Queue()
     for people in next_people:
         url_queue.put(people)
     #连接mongodb
     client=pymongo.MongoClient("localhost",27017)
-    db = client.zhihu
+    db = client.zhihu2
     collection=db.data_collection
     zhihu_data = m.zhihu_dict()
     user_name = zhihu_data['name']
@@ -157,20 +155,26 @@ def main():
         pass
 
     # BFS
-    count = 1
-    while not url_queue.empty()and count < 10000:
-        m = Spider(url_queue.get()+'/followees')
-        next_people = m.get_data()
-        zhihu_data = m.zhihu_dict()
-        user_name = zhihu_data['name']
-        for people in next_people:
-            url_queue.put(people)
+    try:
+        count = 1
+        while not url_queue.empty()and count < 10000:
+            m = Spider(url_queue.get()+'/followees')
+            next_people = m.get_data()
+            zhihu_data = m.zhihu_dict()
+            user_name = zhihu_data['name']
+            for people in next_people:
+                url_queue.put(people)
         
-        if not collection.find_one({"name":user_name}):
-            collection.insert(zhihu_data)
-        else:
-            pass
-        count += 1
+            if not collection.find_one({"name":user_name}):
+                collection.insert(zhihu_data)
+            else:
+                pass
+            count += 1
+
+    except:
+        print m.url
+        sys.exit()
+        
         
 
         
