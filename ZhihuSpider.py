@@ -7,8 +7,9 @@ sys.setdefaultencoding("utf-8")
 import requests
 import re
 import Queue
+from collections import deque
 from lxml import html
-from lxml import etree
+
 
 class Spider():
     def __init__(self, url):
@@ -79,7 +80,7 @@ class Spider():
         self.user_edit = self.user_profile_bar[4]
         self.user_agree = self.get_element(tree.xpath("//span[@class='zm-profile-header-user-agree']//strong/text()"))
         self.user_thanks = self.get_element(tree.xpath("//span[@class='zm-profile-header-user-thanks']//strong/text()"))
-        #followee list
+        #return followee list
         self.user_followees = tree.xpath("//h2[@class='zm-list-content-title']/a/@href")
         self.print_data_out()
         return self.user_followees
@@ -140,15 +141,18 @@ class Spider():
 def main():
     m = Spider('https://www.zhihu.com/people/reynolds/followees')
     next_people = m.get_data()
-    url_queue = Queue.Queue()
+    zhihu_data = m.zhihu_dict()
+    # 利用队列实现BFS算法
+    url_queue = deque()
     for people in next_people:
-        url_queue.put(people)
+        url_queue.append(people)
     #连接mongodb
     client=pymongo.MongoClient("localhost",27017)
     db = client.zhihu2
     collection=db.data_collection
-    zhihu_data = m.zhihu_dict()
+    # insert one item to mongoDB 
     user_name = zhihu_data['name']
+    # check duplicates
     if not collection.find_one({"name":user_name}):
             collection.insert(zhihu_data)
     else:
@@ -156,15 +160,16 @@ def main():
 
     # BFS
     try:
+        # 限制爬取的最大数量
         count = 1
-        while not url_queue.empty()and count < 10000:
-            m = Spider(url_queue.get()+'/followees')
+        while not url_queue and count < 10000:
+            m = Spider(url_queue.popleft()+'/followees')
             next_people = m.get_data()
             zhihu_data = m.zhihu_dict()
             user_name = zhihu_data['name']
             for people in next_people:
-                url_queue.put(people)
-        
+                url_queue.append(people)
+            # checking duplicates    
             if not collection.find_one({"name":user_name}):
                 collection.insert(zhihu_data)
             else:
