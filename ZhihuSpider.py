@@ -8,6 +8,8 @@ import requests
 import re
 import Queue
 from collections import deque
+import pickle
+import ReadingFile
 from lxml import html
 
 
@@ -39,12 +41,20 @@ class Spider():
         'z_c0':'Mi4wQUVCQXhtSU5Md29BQUFCcmY4R2lDUmNBQUFCaEFsVk5qSFNqVndETm42WVZXMlRKcUFhbDdrSUNGWjFpeUNCUVhR|1467737996|7c4ea26bac2d6b9f249138504710168887b4e7ab',
         'n_c':'1'}
         
+    def get_xpath_source(self,source):
+        if source:
+            return source[0]
+        else:
+            return ''
+        
         
     def get_data(self):
         get_html=requests.get(self.url,cookies=self.cookies,headers=self.header,verify=False)
         #get_html.encode = 'utf-8'
         # 生成xpath
         tree = html.fromstring(get_html.text)
+        
+   
         self.user_name=self.get_element(tree.xpath("//a[@class='name']/text()"))
         self.user_bio = self.get_element(tree.xpath("//span[@class='bio']/@title"))
         self.user_location=self.get_element(tree.xpath("//span[@class='location item']/@title"))
@@ -59,25 +69,41 @@ class Spider():
         self.user_education = self.get_element(tree.xpath("//span[@class='education item']/@title"))
         self.user_major = self.get_element(tree.xpath("//span[@class='education-extra item']/@title"))
         self.user_sidebar = tree.xpath("//div[@class='zu-main-sidebar']//strong/text()")
-        self.user_following = self.user_sidebar[0]
-        self.user_follower = self.user_sidebar[1]
-        if len(self.user_sidebar)==5:
-            self.user_column = self.user_sidebar[2]
-            self.user_column= re.findall('\d*',self.user_column)[0]
-            self.user_topic = self.user_sidebar[3]
-            self.user_topic = re.findall('\d*',self.user_topic)[0]
-            self.user_pageview = self.user_sidebar[4]
-        else:
-            self.user_column = 0
-            self.user_topic = self.user_sidebar[2]
-            self.user_topic = re.findall('\d*',self.user_topic)[0]
-            self.user_pageview = self.user_sidebar[3]
         self.user_profile_bar = tree.xpath("//div[@class='profile-navbar clearfix']//span[@class='num']/text()")
-        self.user_ask = self.user_profile_bar[0]
-        self.user_answer = self.user_profile_bar[1]
-        self.user_article = self.user_profile_bar[2]
-        self.user_collection = self.user_profile_bar[3]
-        self.user_edit = self.user_profile_bar[4]
+        try:
+            self.user_following = self.user_sidebar[0]
+            self.user_follower = self.user_sidebar[1]
+            if len(self.user_sidebar)==5:
+                self.user_column = self.user_sidebar[2]
+                self.user_column= re.findall('\d*',self.user_column)[0]
+                self.user_topic = self.user_sidebar[3]
+                self.user_topic = re.findall('\d*',self.user_topic)[0]
+                self.user_pageview = self.user_sidebar[4]
+            else:
+                self.user_column = 0
+                self.user_topic = self.user_sidebar[2]
+                self.user_topic = re.findall('\d*',self.user_topic)[0]
+                self.user_pageview = self.user_sidebar[3]
+        except:
+            self.user_following = None
+            self.user_follower = None
+            self.user_column = None
+            self.user_topic = None
+            self.user_pageview = None
+        try:    
+            self.user_ask = self.user_profile_bar[0]
+            self.user_answer = self.user_profile_bar[1]
+            self.user_article = self.user_profile_bar[2]
+            self.user_collection = self.user_profile_bar[3]
+            self.user_edit = self.user_profile_bar[4]
+        except:
+            self.user_ask = None
+            self.user_answer = None
+            self.user_article = None
+            self.user_collection = None
+            self.user_edit = None
+            
+        
         self.user_agree = self.get_element(tree.xpath("//span[@class='zm-profile-header-user-agree']//strong/text()"))
         self.user_thanks = self.get_element(tree.xpath("//span[@class='zm-profile-header-user-thanks']//strong/text()"))
         #return followee list
@@ -139,16 +165,22 @@ class Spider():
         print "*" * 60
         
 def main():
-    m = Spider('https://www.zhihu.com/people/reynolds/followees')
+    url_queue = ReadingFile.read_file()
+    if not url_queue:
+        # seed url
+        m = Spider('https://www.zhihu.com/people/zhang-jia-jie-89/followees')
+        url_queue = deque()
+    else:
+        m = Spider(url_queue.popleft()+'/followees')
     next_people = m.get_data()
     zhihu_data = m.zhihu_dict()
     # 利用队列实现BFS算法
-    url_queue = deque()
+    
     for people in next_people:
         url_queue.append(people)
     #连接mongodb
     client=pymongo.MongoClient("localhost",27017)
-    db = client.zhihu2
+    db = client.zhihu4
     collection=db.data_collection
     # insert one item to mongoDB 
     user_name = zhihu_data['name']
@@ -162,7 +194,7 @@ def main():
     try:
         # 限制爬取的最大数量
         count = 1
-        while not url_queue and count < 10000:
+        while url_queue and count < 10000:
             m = Spider(url_queue.popleft()+'/followees')
             next_people = m.get_data()
             zhihu_data = m.zhihu_dict()
@@ -175,26 +207,18 @@ def main():
             else:
                 pass
             count += 1
+            
 
     except:
-        print m.url
+        print "error find in "+m.url
+        with open('zhihu_queue.pickle', 'wb') as f:
+            pickle.dump(url_queue, f, pickle.HIGHEST_PROTOCOL)
         sys.exit()
         
         
 
-        
-    
-    
-    #print next_people
-    #for people in next_people:
-    #    url = people+'/followees'
-    #    n = Spider(url)
-    #    next = n.get_data()
+
         
     
 main()
 
-
-
-#result = etree.tostring(tree, pretty_print=True,encoding='UTF-8')
-#print result
