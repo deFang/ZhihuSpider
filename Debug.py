@@ -165,13 +165,10 @@ class Spider():
         print "*" * 60
         
 def main():
-    url_queue = ReadingFile.read_file()
-    if not url_queue:
-        # seed url
-        m = Spider('https://www.zhihu.com/people/zhang-jia-jie-89/followees')
-        url_queue = deque()
-    else:
-        m = Spider(url_queue.popleft()+'/followees')
+   
+    # seed url
+    m = Spider('https://www.zhihu.com/people/forensic/followees')
+    url_queue = deque()
     next_people = m.get_data()
     zhihu_data = m.zhihu_dict()
     # 利用队列实现BFS算法
@@ -190,30 +187,7 @@ def main():
     else:
         pass
 
-    # BFS
-    try:
-        # 限制爬取的最大数量
-        count = 1
-        while url_queue and count < 10000:
-            m = Spider(url_queue.popleft()+'/followees')
-            next_people = m.get_data()
-            zhihu_data = m.zhihu_dict()
-            user_name = zhihu_data['name']
-            for people in next_people:
-                url_queue.append(people)
-            # checking duplicates    
-            if not collection.find_one({"name":user_name}):
-                collection.insert(zhihu_data)
-            else:
-                pass
-            count += 1
-            
-
-    except:
-        print "error find in "+m.url
-        with open('zhihu_queue.pickle', 'wb') as f:
-            pickle.dump(url_queue, f, pickle.HIGHEST_PROTOCOL)
-        sys.exit()
+   
         
 # 运行
 main()
