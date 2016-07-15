@@ -168,7 +168,7 @@ def main():
     url_queue = ReadingFile.read_file()
     if not url_queue:
         # seed url
-        m = Spider('https://www.zhihu.com/people/zhang-jia-jie-89/followees')
+        m = Spider('https://www.zhihu.com/people/du-du-du-91/followees')
         url_queue = deque()
     else:
         m = Spider(url_queue.popleft()+'/followees')
@@ -194,7 +194,7 @@ def main():
     try:
         # 限制爬取的最大数量
         count = 1
-        while url_queue and count < 10000:
+        while url_queue and count < 100000:
             m = Spider(url_queue.popleft()+'/followees')
             next_people = m.get_data()
             zhihu_data = m.zhihu_dict()
@@ -207,7 +207,10 @@ def main():
             else:
                 pass
             count += 1
-            
+        if url_queue:
+            print 'have reached the maximum iteration {}'.format(count)
+        else:
+            print 'the queue is exhausted'
 
     except:
         print "error find in "+m.url
